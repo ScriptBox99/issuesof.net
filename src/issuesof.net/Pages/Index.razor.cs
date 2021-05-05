@@ -1,6 +1,7 @@
 ﻿using System;
 
 using IssuesOfDotNet.Data;
+using IssuesOfDotNet.Querying;
 
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Hosting;
@@ -12,6 +13,8 @@ namespace IssuesOfDotNet.Pages
 {
     public sealed partial class Index : IDisposable
     {
+        private static string _defaultSearch = "is:issue is:open";
+
         private string _searchText;
         private int _pageNumber;
 
@@ -55,6 +58,8 @@ namespace IssuesOfDotNet.Pages
             }
         }
 
+        public bool ShowHelp { get; set; }
+
         public CrawledTrieLookupResult SearchResults { get; private set; } = CrawledTrieLookupResult.Empty;
 
         protected override void OnInitialized()
@@ -87,7 +92,7 @@ namespace IssuesOfDotNet.Pages
             if (parameters.TryGetValue("q", out var q))
                 SearchText = q;
             else
-                SearchText = string.Empty;
+                SearchText = _defaultSearch;
 
             _pageNumber = -1;
 
@@ -102,16 +107,23 @@ namespace IssuesOfDotNet.Pages
             if (TrieService.Index is null)
                 return;
 
-            SearchResults = TrieService.Index.Trie.LookupIssues(SearchText);
+            SearchResults = Find(SearchText);
             PageNumber = 1;
             UpdateQueryParameters();
         }
 
+        private CrawledTrieLookupResult Find(string searchText)
+        {
+            var query = CrawledIssueQuery.Create(searchText);
+            var issues = query.Execute(TrieService.Index);
+            return new CrawledTrieLookupResult(issues);
+        }
+
         private async void UpdateQueryParameters()
         {
-            var queryString = string.IsNullOrEmpty(SearchText)
-                ? string.Empty
-                : "?q=" + SearchText;
+            var queryString = !string.IsNullOrEmpty(SearchText) && SearchText != _defaultSearch
+                ? "?q=" + SearchText
+                : string.Empty;
 
             if (queryString.Length > 0 && PageNumber > 1)
                 queryString += "&page=" + PageNumber;
